@@ -1,5 +1,4 @@
 import pydicom as dicom
-import glob
 import numpy as np
 from skimage.transform import resize
 import segmentation
@@ -7,24 +6,49 @@ import matplotlib.pyplot as plt
 
 materials = {1: "air", 2: "soft tissue", 3: "cortical bone"}
 
-def load_dicom(source_path =r"./*/*/", fixed_slice_thinckness = None, new_resolution = None, truncate = None, smooth_air = False, use_thresholding_segmentation = False, file_extension = ".dcm"):
-    source_path += "*"+ file_extension
-    files = np.array(glob.glob(source_path))
-    one_slice = dicom.read_file(files[0])
-    if hasattr(one_slice, "InstanceNumber"):
-        sliceOrder = [dicom.read_file(curDCM).InstanceNumber for curDCM in files]
-        files = files[np.argsort(sliceOrder).astype(np.int32)]
-    else:
-        sliceOrder = [dicom.read_file(curDCM).SliceLocation for curDCM in files]
-        files = files[np.argsort(sliceOrder).astype(np.int32)]
+def through_plane_location(dicom_file):
+    """
+    Gets spatial coordinate of image origin whose axis is perpendicular to image plane.
 
-    files = list(files)
+    :param dicom_file: a pydicom.dataset.FileDataset object or the full path to the DICOM file
+    :return: through-plane location
+    """
+    if not isinstance(dicom_file, dicom.dataset.FileDataset):
+        dicom_file = dicom.dcmread(dicom_file)
+
+    assert dicom_file.Modality == "CT" or dicom_file.Modality == "MR", "Only CT and MR slices are supported."
+
+    orientation = tuple((float(o) for o in dicom_file.ImageOrientationPatient))
+    position = tuple((float(p) for p in dicom_file.ImagePositionPatient))
+    rowvec, colvec = orientation[:3], orientation[3:]  # rowvec: X-axis / colvec: Y-axis
+    normal_vector = np.cross(rowvec, colvec)
+    slice_pos = np.dot(position, normal_vector)
+    return slice_pos
+
+
+def load_dicom(source_path =r"./*/*/", fixed_slice_thinckness = None, new_resolution = None, truncate = None, smooth_air = False, use_thresholding_segmentation = False):
+
+    unordered_datasets=[]
+    through_plane_locations=[]
+    for file in source_path.glob('**/*'):
+        try:
+            one_slice = dicom.read_file(str(file))
+            if one_slice.Modality == 'CT' or one_slice.Modality == 'MR':
+                unordered_datasets.append(one_slice)
+                through_plane_locations.append(through_plane_location(one_slice))
+            else:
+                print(
+                    f"Skipped parsing 'FrameOfReferenceUID' for unsupported modality {one_slice.Modality} at {file}.")
+        except:
+            print(f'Skipped unparsable file {file}.')
+
+    datasets = [ds for _, ds in sorted(zip(through_plane_locations, unordered_datasets))]
 
     # Get ref file
-    refDs = dicom.read_file(files[0])
+    refDs = datasets[0]
 
     # Load dimensions based on the number of rows, columns, and slices (along the Z axis)
-    volume_size = [int(refDs.Rows), int(refDs.Columns), files.__len__()]
+    volume_size = [int(refDs.Rows), int(refDs.Columns), len(datasets)]
 
     if not hasattr(refDs,"SliceThickness"):
         print('Volume has no attribute Slice Thickness, please provide it manually!')
@@ -33,17 +57,13 @@ def load_dicom(source_path =r"./*/*/", fixed_slice_thinckness = None, new_resolu
     else:
         voxel_size = [float(refDs.PixelSpacing[1]), float(refDs.PixelSpacing[0]), float(refDs.SliceThickness)]
 
-
     # The array is sized based on 'PixelDims'
     volume = np.zeros(volume_size, dtype=np.float64)
 
     # loop through all the DICOM files
-    for filenameDCM in files:
-        # read the file
-        ds = dicom.read_file(filenameDCM)
+    for i, ds in enumerate(datasets):
         # store the raw image data
-        if files.index(filenameDCM) < volume.shape[2]:
-            volume[:, :, files.index(filenameDCM)] = ds.pixel_array.astype(np.int32)
+        volume[:, :, i] = ds.pixel_array.astype(np.int32)
 
     #use intercept point
     if hasattr(refDs, "RescaleIntercept"):

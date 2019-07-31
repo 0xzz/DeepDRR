@@ -7,7 +7,7 @@ import pickle
 def image_saver(images, prefix, path):
     for i in range(0,images.shape[0]):
         image_pil = Image.fromarray(images[i, :, :])
-        image_pil.save(path + "\\" +prefix + str(i).zfill(5) + ".tiff")
+        image_pil.save(path / f"{prefix}{i:05d}.tiff")
     return True
 
 def param_saver(thetas, phis, proj_mats, camera, origin, photons, spectrum, prefix, save_path):

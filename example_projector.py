@@ -9,6 +9,7 @@ from utils import image_saver, Camera, param_saver
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+from pathlib import Path
 
 def generate_projections_on_sphere(volume_path,save_path,min_theta,max_theta,min_phi,max_phi,spacing_theta,spacing_phi,photon_count,camera,spectrum,scatter = False,origin = [0,0,0]):
     # generate angle pairs on a sphere
@@ -72,9 +73,9 @@ def main():
     ####
     #define the path to your dicoms here or use the simple phantom from the code above
     ####
-    dicompath = r".\your_dicom_directory\\"
+    dicompath = Path("./your_dicom_directory")
 
-    save_path = r".\generated_data\test"
+    save_path = Path("./generated_data/test")
     min_theta = 60
     max_theta = 120
     min_phi = 0
