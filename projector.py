@@ -3,11 +3,11 @@ import pycuda.autoinit
 from pycuda.autoinit import context
 from pycuda.compiler import SourceModule
 import numpy as np
-import os,inspect
+import os, inspect
 
 
 class ForwardProjector():
-    def __init__(self,volume,segmentation,voxelsize,origin=[0.0,0.0,0.0],stepsize = 0.1,mode="linear"):
+    def __init__(self, volume, segmentation, voxelsize, origin=[0.0, 0.0, 0.0], stepsize=0.1, mode="linear"):
         #generate kernels
         self.mod = self.generateKernelModuleProjector()
         self.projKernel = self.mod.get_function("projectKernel")
@@ -21,7 +21,7 @@ class ForwardProjector():
         self.segmentation_gpu = cuda.np_to_array(self.segmentation, order='C')
         self.texref_segmentation = self.mod.get_texref("tex_segmentation")
         cuda.bind_array_to_texref(self.segmentation_gpu, self.texref_segmentation)
-        if mode =="linear":
+        if mode == "linear":
             self.texref_volume.set_filter_mode(cuda.filter_mode.LINEAR)
             self.texref_segmentation.set_filter_mode(cuda.filter_mode.LINEAR)
         self.voxelsize = voxelsize
@@ -35,12 +35,12 @@ class ForwardProjector():
         self.proj_height = np.int32(proj_height)
         self.initialized = True
 
-    def setOrigin(self,origin):
+    def setOrigin(self, origin):
         self.origin = origin
 
     def generateKernelModuleProjector(self):
         #path to files for cubic interpolation (folder cubic in DeepDRR)
-        bicubic_path = os.path.join(os.path.dirname(os.path.abspath(inspect.stack()[0][1])),"cubic")
+        bicubic_path = os.path.join(os.path.dirname(os.path.abspath(inspect.stack()[0][1])), "cubic")
         print(bicubic_path)
         mod = SourceModule("""
             #include <stdio.h>
@@ -173,13 +173,14 @@ class ForwardProjector():
               """, include_dirs=[bicubic_path], no_extern_c=True)
         return mod
 
-
-    def project(self, proj_mat, threads = 8, max_blockind = 1024):
+    def project(self, proj_mat, threads=8, max_blockind=1024):
         if not self.initialized:
             print("Projector is not initialized")
             return
 
-        inv_ar_mat, source_point = proj_mat.get_conanical_proj_matrix(voxel_size=self.voxelsize, volume_size=self.volumesize, origin_shift=self.origin)
+        inv_ar_mat, source_point = proj_mat.get_conanical_proj_matrix(voxel_size=self.voxelsize,
+                                                                      volume_size=self.volumesize,
+                                                                      origin_shift=self.origin)
 
         can_proj_matrix = inv_ar_mat.astype(np.float32)
         pixel_array = np.zeros((self.proj_width, self.proj_height)).astype(np.float32)
@@ -212,20 +213,25 @@ class ForwardProjector():
             #run kernel
             offset_w = np.int32(0)
             offset_h = np.int32(0)
-            self.projKernel(self.proj_width, self.proj_height, self.stepsize, g_volume_edge_min_point_x, g_volume_edge_min_point_y, g_volume_edge_min_point_z,
-                            g_volume_edge_max_point_x, g_volume_edge_max_point_y, g_volume_edge_max_point_z, g_voxel_element_size_x, g_voxel_element_size_y, g_voxel_element_size_z, sourcex, sourcey, sourcez,
-                            proj_matrix_gpu, pixel_array_gpu, offset_w, offset_h, block=(8, 8, 1), grid=(blocks_w, blocks_h))
+            self.projKernel(self.proj_width, self.proj_height, self.stepsize, g_volume_edge_min_point_x,
+                            g_volume_edge_min_point_y, g_volume_edge_min_point_z,
+                            g_volume_edge_max_point_x, g_volume_edge_max_point_y, g_volume_edge_max_point_z,
+                            g_voxel_element_size_x, g_voxel_element_size_y, g_voxel_element_size_z, sourcex, sourcey,
+                            sourcez,
+                            proj_matrix_gpu, pixel_array_gpu, offset_w, offset_h, block=(8, 8, 1),
+                            grid=(blocks_w, blocks_h))
         else:
             print("running kernel patchwise")
-            for w in range(0, (blocks_w-1)//max_blockind+1):
-                for h in range(0, (blocks_h-1) // max_blockind+1):
+            for w in range(0, (blocks_w - 1) // max_blockind + 1):
+                for h in range(0, (blocks_h - 1) // max_blockind + 1):
                     offset_w = np.int32(w * max_blockind)
                     offset_h = np.int32(h * max_blockind)
                     # print(offset_w, offset_h)
                     self.projKernel(self.proj_width, self.proj_height, self.stepsize, g_volume_edge_min_point_x,
                                     g_volume_edge_min_point_y, g_volume_edge_min_point_z,
                                     g_volume_edge_max_point_x, g_volume_edge_max_point_y, g_volume_edge_max_point_z,
-                                    g_voxel_element_size_x, g_voxel_element_size_y, g_voxel_element_size_z, sourcex, sourcey,
+                                    g_voxel_element_size_x, g_voxel_element_size_y, g_voxel_element_size_z, sourcex,
+                                    sourcey,
                                     sourcez,
                                     proj_matrix_gpu, pixel_array_gpu, offset_w, offset_h, block=(8, 8, 1),
                                     grid=(max_blockind, max_blockind))
@@ -236,19 +242,21 @@ class ForwardProjector():
 
         pixel_array = np.swapaxes(pixel_array, 0, 1)
         #normalize to cm
-        return pixel_array/10
+        return pixel_array / 10
 
-def generate_projections(projection_matrices, density, materials, origin, voxel_size, sensor_width, sensor_height, mode ="linear", max_blockind = 1024, threads = 8):
+
+def generate_projections(projection_matrices, density, materials, origin, voxel_size, sensor_width, sensor_height,
+                         mode="linear", max_blockind=1024, threads=8):
     # projections = np.zeros((projection_matrices.__len__(), sensor_width, sensor_height, materials.__len__()),dtype=np.float32)
     projections = {}
 
     for mat in materials:
         print("projecting:", mat)
         curr_projections = np.zeros((projection_matrices.__len__(), sensor_height, sensor_width), dtype=np.float32)
-        projector = ForwardProjector(density, materials[mat], voxel_size, origin=origin, mode = mode)
+        projector = ForwardProjector(density, materials[mat], voxel_size, origin=origin, mode=mode)
         projector.initialize_sensor(sensor_width, sensor_height)
         for i, proj_mat in enumerate(projection_matrices):
-            curr_projections[i, :, :] =projector.project(proj_mat, max_blockind= max_blockind, threads=threads)
+            curr_projections[i, :, :] = projector.project(proj_mat, max_blockind=max_blockind, threads=threads)
         projections[mat] = curr_projections
         #clean projector to free Memory on GPU
         projector = None

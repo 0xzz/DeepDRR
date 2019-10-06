@@ -4,22 +4,26 @@ from datetime import datetime
 from os import path
 import pickle
 
+
 def image_saver(images, prefix, path):
-    for i in range(0,images.shape[0]):
+    for i in range(0, images.shape[0]):
         image_pil = Image.fromarray(images[i, :, :])
         image_pil.save(path / f"{prefix}{i:05d}.tiff")
     return True
 
+
 def param_saver(thetas, phis, proj_mats, camera, origin, photons, spectrum, prefix, save_path):
-    i0 = np.sum(spectrum[:,0]*(spectrum[:,1]/np.sum(spectrum[:,1])))/1000
-    data = {"date": datetime.now(), "thetas": thetas, "phis": phis, "proj_mats": proj_mats, "camera": camera, "origin": origin, "photons": photons, "spectrum": spectrum, "I0":i0}
-    with open(path.join(save_path,prefix+'.pickle'), 'wb') as f:
+    i0 = np.sum(spectrum[:, 0] * (spectrum[:, 1] / np.sum(spectrum[:, 1]))) / 1000
+    data = {"date": datetime.now(), "thetas": thetas, "phis": phis, "proj_mats": proj_mats, "camera": camera,
+            "origin": origin, "photons": photons, "spectrum": spectrum, "I0": i0}
+    with open(path.join(save_path, prefix + '.pickle'), 'wb') as f:
         # Pickle the 'data' dictionary using the highest protocol available.
         pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
     return True
 
+
 class Camera():
-    def __init__(self,sensor_width,sensor_height,pixel_size,source_to_detector_distance,isocenter_distance):
+    def __init__(self, sensor_width, sensor_height, pixel_size, source_to_detector_distance, isocenter_distance):
         self.sensor_width = sensor_width
         self.sensor_height = sensor_height
         self.pixel_size = pixel_size

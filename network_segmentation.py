@@ -35,11 +35,13 @@ import torch.nn.functional as F
 def passthrough(x, **kwargs):
     return x
 
+
 def ELUCons(elu, nchan):
     if elu:
         return nn.ELU(inplace=True)
     else:
         return nn.PReLU(nchan)
+
 
 # normalization between sub-volumes is necessary
 # for good performance
@@ -96,7 +98,7 @@ class InputTransition(nn.Module):
 class DownTransition(nn.Module):
     def __init__(self, inChans, nConvs, elu, dropout=False):
         super(DownTransition, self).__init__()
-        outChans = 2*inChans
+        outChans = 2 * inChans
         self.down_conv = nn.Conv3d(inChans, outChans, kernel_size=2, stride=2)
         self.bn1 = ContBatchNorm3d(outChans)
         self.do1 = passthrough
@@ -136,6 +138,7 @@ class UpTransition(nn.Module):
         out = self.relu2(torch.add(out, xcat))
         return out
 
+
 class OutputTransition(nn.Module):
     def __init__(self, inChans, outChans, elu, nll):
         self.outChans = outChans
@@ -150,8 +153,9 @@ class OutputTransition(nn.Module):
         # # convolve 32 down to 2 channels
         out = self.relu1(self.bn1(self.conv1(x)))
         out = self.conv2(out)
-        out = self.softmax(out,dim=1)
+        out = self.softmax(out, dim=1)
         return out
+
 
 class VNet(nn.Module):
     # the number of convolutions in each layer corresponds
